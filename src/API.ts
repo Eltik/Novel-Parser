@@ -1,3 +1,4 @@
+import { ReadStream, WriteStream } from "fs";
 import PromiseRequest, { Options, Response } from "./libraries/promise-request";
 
 export default class API {
@@ -107,6 +108,22 @@ export default class API {
         });
         const data = await request.request();
         return data;
+    }
+
+    public async stream(url:string, stream:ReadableStream|WritableStream|ReadStream|WriteStream, options?:Options) {
+        const request = new PromiseRequest(url, {
+            ...options,
+            stream: true,
+            headers: {
+                ...options?.headers,
+                'User-Agent': this.userAgent
+            }
+        });
+        const final = await request.stream(stream).catch((err) => {
+            console.error(err);
+            return null;
+        });
+        return final;
     }
 
     public async wait(time:number) {

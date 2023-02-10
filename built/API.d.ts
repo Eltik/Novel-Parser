@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { ReadStream, WriteStream } from "fs";
 import { Options, Response } from "./libraries/promise-request";
 export default class API {
     private userAgent;
@@ -29,6 +31,7 @@ export default class API {
     constructor(type: ProviderType, options?: any);
     loadConfig(options?: any): void;
     fetch(url: string, options?: Options): Promise<Response>;
+    stream(url: string, stream: ReadableStream | WritableStream | ReadStream | WriteStream, options?: Options): Promise<unknown>;
     wait(time: number): Promise<unknown>;
     stringSearch(string: string, pattern: string): number;
 }

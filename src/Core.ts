@@ -4,6 +4,7 @@ import Anify from "./Anify";
 import DB from "./DB";
 import { compareTwoStrings } from "./libraries/StringSimilarity";
 import * as colors from "colors";
+import * as crawler from "crawler-request";
 
 export default class Core extends API {
     public aniList = new AniList();
@@ -378,6 +379,11 @@ export default class Core extends API {
         }
         if (curVal.length > 0) return curVal;
         return newVal;
+    }
+
+    public async pdfToHTML(url:string): Promise<string> {
+        const data = await crawler(url);
+        return data.text;
     }
 }
 

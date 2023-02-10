@@ -28,6 +28,7 @@
         "axios": "^1.2.2",
         "cheerio": "^1.0.0-rc.12",
         "colors": "^1.4.0",
+        "crawler-request": "^1.2.2",
         "crypto-js": "^4.1.1",
         "sqlite3": "^5.1.4"
     }

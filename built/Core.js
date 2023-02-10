@@ -6,6 +6,7 @@ const Anify_1 = require("./Anify");
 const DB_1 = require("./DB");
 const StringSimilarity_1 = require("./libraries/StringSimilarity");
 const colors = require("colors");
+const crawler = require("crawler-request");
 class Core extends API_1.default {
     /**
      * @constructor
@@ -343,6 +344,17 @@ class Core extends API_1.default {
         if (curVal.length > 0)
             return curVal;
         return newVal;
+    }
+    async pdfToHTML(url) {
+        const data = await crawler(url);
+        return data.text;
+        /*
+        const doc = await pdf(pdfPath).promise;
+        const page = await doc.getPage(1);
+        const content = await page.getTextContent();
+        const text = content.items.map((item) => item.str).join(' ');
+        return text;
+        */
     }
 }
 exports.default = Core;

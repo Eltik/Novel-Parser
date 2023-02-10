@@ -105,6 +105,21 @@ class API {
         const data = await request.request();
         return data;
     }
+    async stream(url, stream, options) {
+        const request = new promise_request_1.default(url, {
+            ...options,
+            stream: true,
+            headers: {
+                ...options?.headers,
+                'User-Agent': this.userAgent
+            }
+        });
+        const final = await request.stream(stream).catch((err) => {
+            console.error(err);
+            return null;
+        });
+        return final;
+    }
     async wait(time) {
         return new Promise(resolve => {
             setTimeout(resolve, time);

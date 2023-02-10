@@ -79,6 +79,7 @@ export default class Core extends API {
      * @returns FormattedResponse[]
      */
     private searchCompare;
+    pdfToHTML(url: string): Promise<any>;
 }
 interface Result {
     title: string;
