@@ -1,9 +1,19 @@
 import API from "./API";
-import AniList, { Type, Media } from "./AniList";
+import AniList, { Media } from "./AniList";
 export default class Core extends API {
     aniList: AniList;
+    private db;
+    private insert;
     classDictionary: Provider[];
-    constructor();
+    /**
+     * @constructor
+     * @param insert Whether or not to insert the results into the database.
+     */
+    constructor(insert?: boolean);
+    /**
+     * @description Initializes the database
+     */
+    init(): Promise<void>;
     /**
      * @description Searches on AniList and on providers and finds the best results possible. Very accurate but a lot slower.
      * @param query Media to search for.
@@ -37,7 +47,7 @@ export default class Core extends API {
      * @param maxIds Max IDs to crawl
      * @returns Promise<any>
      */
-    crawl(type: Type, maxIds?: number): Promise<FormattedResponse[]>;
+    crawl(stopOnError?: boolean, maxIds?: number): Promise<FormattedResponse[]>;
     /**
     * @description Formats search responses so that all connectors are assigned to one AniList media object.
     * @param results Search results

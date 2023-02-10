@@ -3,12 +3,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const API_1 = require("./API");
 const AniList_1 = require("./AniList");
 const Anify_1 = require("./Anify");
+const DB_1 = require("./DB");
 const StringSimilarity_1 = require("./libraries/StringSimilarity");
 const colors = require("colors");
 class Core extends API_1.default {
-    constructor() {
+    /**
+     * @constructor
+     * @param insert Whether or not to insert the results into the database.
+     */
+    constructor(insert) {
         super(API_1.ProviderType.NONE, null);
         this.aniList = new AniList_1.default();
+        this.db = new DB_1.default();
+        this.insert = false;
         this.classDictionary = [];
         this.classDictionary = [
             {
@@ -16,6 +23,13 @@ class Core extends API_1.default {
                 object: new Anify_1.default,
             }
         ];
+        this.insert = insert ? insert : false;
+    }
+    /**
+     * @description Initializes the database
+     */
+    async init() {
+        await this.db.init();
     }
     /**
      * @description Searches on AniList and on providers and finds the best results possible. Very accurate but a lot slower.
@@ -31,18 +45,21 @@ class Core extends API_1.default {
             console.log(colors.gray("Searching for ") + colors.blue(query) + colors.gray("..."));
         }
         // Search on AniList first
-        const aniSearch = await this.aniSearch(query, AniList_1.Type.MANGA);
+        const aniSearch = await this.aniSearch(query);
         if (this.config.debug) {
             console.log(colors.gray("Received ") + colors.blue("AniList") + colors.gray(" response."));
         }
         const aniList = this.searchCompare(result, aniSearch);
         // Then search on providers
-        const pageSearch = await this.pageSearch(query, AniList_1.Type.MANGA);
+        const pageSearch = await this.pageSearch(query);
         if (this.config.debug) {
             console.log(colors.gray("Received ") + colors.blue("Provider") + colors.gray(" response."));
         }
         // Find the best results possible
         const pageList = this.searchCompare(aniList, pageSearch, 0.5);
+        if (this.insert) {
+            await this.db.insert(pageList);
+        }
         return pageList;
     }
     /**
@@ -51,25 +68,21 @@ class Core extends API_1.default {
      * @param type Type of media to search for.
      * @returns Promise<FormattedResponse[]>
      */
-    async aniSearch(query, type) {
+    async aniSearch(query) {
         const results = [];
-        const aniList = await this.aniList.search(query, type);
+        const aniList = await this.aniList.search(query);
         const promises = [];
         for (let i = 0; i < this.classDictionary.length; i++) {
             const provider = this.classDictionary[i];
-            if (provider.object.providerType === type) {
-                promises.push(provider.object.search(query));
-            }
+            promises.push(provider.object.search(query));
         }
         const resultsArray = await Promise.all(promises);
         for (let i = 0; i < resultsArray.length; i++) {
             for (let j = 0; j < resultsArray[i].length; j++) {
                 let best = null;
                 aniList.map(async (result) => {
-                    if (type === AniList_1.Type.MANGA) {
-                        if (result.format != AniList_1.Format.NOVEL) {
-                            return;
-                        }
+                    if (result.format != AniList_1.Format.NOVEL) {
+                        return;
                     }
                     const title = result.title.userPreferred || result.title.romaji || result.title.english || result.title.native;
                     const altTitles = Object.values(result.title).concat(result.synonyms);
@@ -102,19 +115,17 @@ class Core extends API_1.default {
      * @param type Type of media to search for.
      * @returns Promise<FormattedResponse[]>
      */
-    async pageSearch(query, type) {
+    async pageSearch(query) {
         const results = [];
         const promises = [];
         for (let i = 0; i < this.classDictionary.length; i++) {
             const provider = this.classDictionary[i];
-            if (provider.object.providerType === type) {
-                promises.push(provider.object.search(query));
-            }
+            promises.push(provider.object.search(query));
         }
         const resultsArray = await Promise.all(promises);
         for (let i = 0; i < resultsArray.length; i++) {
             for (let j = 0; j < resultsArray[i].length; j++) {
-                const aniSearch = await this.aniList.search(this.sanitizeTitle(resultsArray[i][j].title), type);
+                const aniSearch = await this.aniList.search(this.sanitizeTitle(resultsArray[i][j].title));
                 let best = null;
                 aniSearch.map(async (result) => {
                     const title = result.title.userPreferred || result.title.romaji || result.title.english || result.title.native;
@@ -149,18 +160,24 @@ class Core extends API_1.default {
      * @returns
      */
     async get(id) {
-        const aniList = await this.aniList.getMedia(id);
-        if (!aniList) {
-            return null;
-        }
-        let result = null;
-        const results = await this.search(aniList.title.userPreferred);
-        for (let i = 0; i < results.length; i++) {
-            if (Number(results[i].id) === Number(id)) {
-                result = results[i];
+        const possible = await this.db.get(id);
+        if (!possible) {
+            const aniList = await this.aniList.getMedia(id);
+            if (!aniList) {
+                return null;
             }
+            let result = null;
+            const results = await this.search(aniList.title.userPreferred);
+            for (let i = 0; i < results.length; i++) {
+                if (Number(results[i].id) === Number(id)) {
+                    result = results[i];
+                }
+            }
+            return result;
         }
-        return result;
+        else {
+            return possible;
+        }
     }
     /**
      * @description Crawls the provider for media.
@@ -168,18 +185,9 @@ class Core extends API_1.default {
      * @param maxIds Max IDs to crawl
      * @returns Promise<any>
      */
-    async crawl(type, maxIds) {
+    async crawl(stopOnError, maxIds) {
         const results = [];
-        let ids = [];
-        if (type === AniList_1.Type.ANIME) {
-            ids = await this.aniList.getAnimeIDs();
-        }
-        else if (type === AniList_1.Type.MANGA) {
-            ids = await this.aniList.getMangaIDs();
-        }
-        else {
-            throw new Error("Unknown type.");
-        }
+        let ids = await this.aniList.getMangaIDs();
         maxIds = maxIds ? maxIds : ids.length;
         for (let i = 0; i < ids.length && i < maxIds; i++) {
             if (i >= maxIds) {
@@ -192,11 +200,14 @@ class Core extends API_1.default {
                 }
                 return null;
             });
-            if (data) {
+            if (data && data.format === AniList_1.Format.NOVEL) {
                 const result = await this.get(ids[i]).catch((err) => {
                     if (this.config.debug) {
                         console.log(colors.red("Error fetching ID from providers: ") + colors.white(ids[i] + ""));
                         console.log(colors.gray(err.message));
+                    }
+                    if (stopOnError) {
+                        throw new Error(err);
                     }
                     return null;
                 });

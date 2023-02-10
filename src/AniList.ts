@@ -144,12 +144,12 @@ export default class AniList extends Provider {
      * @param perPage Amount of media per page
      * @returns Promise<Media[]>
      */
-    public async search(query:string, type:Type, page?:number, perPage?:number): Promise<Media[]> {
+    public async search(query:string, page?:number, perPage?:number): Promise<Media[]> {
         page = page ? page : 0;
         perPage = perPage ? perPage : 10;
         const aniListArgs = {
             query: `
-            query($page: Int, $perPage: Int, $search: String, $type: MediaType) {
+            query($page: Int, $perPage: Int, $search: String, $type: MediaType, $format: MediaFormat) {
                 Page(page: $page, perPage: $perPage) {
                     pageInfo {
                         total
@@ -158,7 +158,7 @@ export default class AniList extends Provider {
                         hasNextPage
                         perPage
                     }
-                    media(type: $type, search: $search) {
+                    media(type: $type, format:$format search: $search) {
                         ${this.query}
                     }
                 }
@@ -166,7 +166,8 @@ export default class AniList extends Provider {
             `,
             variables: {
                 search: query,
-                type: type,
+                type: Type.MANGA,
+                format: Format.NOVEL,
                 page: page,
                 perPage: perPage
             }
@@ -252,10 +253,11 @@ export default class AniList extends Provider {
         return ids1.concat(ids2);
     }
 
-    public async getSeasonal(type?:Type, page?:number, perPage?:number): Promise<SeasonalResponse> {
+    public async getSeasonal(page?:number, perPage?:number): Promise<SeasonalResponse> {
         page = page ? page : 0;
         perPage = perPage ? perPage : 6;
-        type = type ? type : Type.ANIME;
+        
+        const type = Type.MANGA;
 
         if (!type) {
             throw new Error("No type specified.");
@@ -353,479 +355,11 @@ export default class AniList extends Provider {
         const response:Response = await this.fetch(url, options);
         return response;
     }
-
-    /**
-     * @description Authenticates an user and returns an authentication token.
-     * @param code Auth code
-     * @returns Promise<AuthResponse>
-     */
-    public async auth(code:string): Promise<AuthResponse> {
-        const options = {
-            uri: 'https://anilist.co/api/v2/oauth/token',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            json: {
-                'grant_type': 'authorization_code',
-                'client_id': this.config.AniList.oath_id,
-                'client_secret': this.config.AniList.oath_secret,
-                'redirect_uri': this.config.web_server.url + "/auth",
-                'code': code,
-            }
-        };
-
-        const req = await this.request(options.uri, {
-            body: JSON.stringify(options.json),
-            method: options.method,
-            headers: options.headers
-        }).catch((err) => {
-            console.error(err);
-            return null;
-        });
-        const data = req.json();
-        return data;
-    }
-
-    /**
-     * @description Fetches information about an user
-     * @param username Username to query
-     * @returns Promise<UserResponse>
-     */
-    public async getUser(username:string): Promise<UserResponse> {
-        const options = {
-            uri: this.api,
-            method: 'POST',
-            json: {
-                query: `
-                query($id: Int, $name: String) {
-                    User(id: $id, name: $name) {
-                        id name previousNames {
-                            name updatedAt
-                        }
-                        avatar {
-                            large
-                        }
-                        bannerImage about isFollowing isFollower donatorTier donatorBadge createdAt moderatorRoles isBlocked bans options {
-                            profileColor restrictMessagesToFollowing
-                        }
-                        mediaListOptions {
-                            scoreFormat
-                        }
-                        statistics {
-                            anime {
-                                count meanScore standardDeviation minutesWatched episodesWatched genrePreview: genres(limit: 10, sort: COUNT_DESC) {
-                                    genre count
-                                }
-                            }
-                            manga {
-                                count meanScore standardDeviation chaptersRead volumesRead genrePreview: genres(limit: 10, sort: COUNT_DESC) {
-                                    genre count
-                                }
-                            }
-                        }
-                        stats {
-                            activityHistory {
-                                date amount level
-                            }
-                        }
-                        favourites {
-                            anime {
-                                edges {
-                                    favouriteOrder node {
-                                        id type status(version: 2) format isAdult bannerImage title {
-                                            userPreferred
-                                        }
-                                        coverImage {
-                                            large
-                                        }
-                                        startDate {
-                                            year
-                                        }
-                                    }
-                                }
-                            }
-                            manga {
-                                edges {
-                                    favouriteOrder node {
-                                        id type status(version: 2) format isAdult bannerImage title {
-                                            userPreferred
-                                        }
-                                        coverImage {
-                                            large
-                                        }
-                                        startDate {
-                                            year
-                                        }
-                                    }
-                                }
-                            }
-                            characters {
-                                edges {
-                                    favouriteOrder node {
-                                        id name {
-                                            userPreferred
-                                        }
-                                        image {
-                                            large
-                                        }
-                                    }
-                                }
-                            }
-                            staff {
-                                edges {
-                                    favouriteOrder node {
-                                        id name {
-                                            userPreferred
-                                        }
-                                        image {
-                                            large
-                                        }
-                                    }
-                                }
-                            }
-                            studios {
-                                edges {
-                                    favouriteOrder node {
-                                        id name
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                `,
-                variables: {
-                    "name": username,
-                }
-            }
-        };
-
-        const req = await this.request(options.uri, {
-            body: JSON.stringify(options.json),
-            method: options.method,
-            headers: {
-                "Content-Type": "application/json",
-            }
-        }).catch((err) => {
-            console.error(err);
-            return null;
-        });
-        const data = req.json();
-        return data;
-    }
-
-    /**
-     * @description Fetches the list of the currently logged-in user
-     * @param token Authentication token
-     * @returns Promise<UserResponse>
-     */
-    public async getViewer(token:string): Promise<UserResponse> {
-        const options = {
-            uri: this.api,
-            method: 'POST',
-            json: {
-                query: `
-                query {
-                    Viewer {
-                        id
-                        name
-                        previousNames {
-                            name
-                            updatedAt
-                        }
-                        avatar {
-                            large
-                        }
-                        bannerImage
-                        about
-                        isFollowing
-                        isFollower
-                        donatorTier
-                        donatorBadge
-                        createdAt
-                        moderatorRoles
-                        isBlocked
-                        bans
-                        options {
-                            profileColor
-                            restrictMessagesToFollowing
-                        }
-                        mediaListOptions {
-                            scoreFormat
-                        }
-                        statistics {
-                            anime {
-                                count
-                                meanScore
-                                standardDeviation
-                                minutesWatched
-                                episodesWatched
-                                genrePreview: genres(limit: 10, sort: COUNT_DESC) {
-                                    genre
-                                    count
-                                }
-                            }
-                            manga {
-                                count
-                                meanScore
-                                standardDeviation
-                                chaptersRead
-                                volumesRead
-                                genrePreview: genres(limit: 10, sort: COUNT_DESC) {
-                                    genre
-                                    count
-                                }
-                            }
-                        }
-                        stats {
-                            activityHistory {
-                                date
-                                amount
-                                level
-                            }
-                        }
-                        favourites {
-                            anime {
-                                edges {
-                                    favouriteOrder
-                                    node {
-                                        id
-                                        type
-                                        status(version: 2)
-                                        format
-                                        isAdult
-                                        bannerImage
-                                        title {
-                                            userPreferred
-                                        }
-                                        coverImage {
-                                            large
-                                        }
-                                        startDate {
-                                            year
-                                        }
-                                    }
-                                }
-                            }
-                            manga {
-                                edges {
-                                    favouriteOrder
-                                    node {
-                                        id
-                                        type
-                                        status(version: 2)
-                                        format
-                                        isAdult
-                                        bannerImage
-                                        title {
-                                            userPreferred
-                                        }
-                                        coverImage {
-                                            large
-                                        }
-                                        startDate {
-                                            year
-                                        }
-                                    }
-                                }
-                            }
-                            characters {
-                                edges {
-                                    favouriteOrder
-                                    node {
-                                        id
-                                        name {
-                                            userPreferred
-                                        }
-                                        image {
-                                            large
-                                        }
-                                    }
-                                }
-                            }
-                            staff {
-                                edges {
-                                    favouriteOrder
-                                    node {
-                                        id
-                                        name {
-                                            userPreferred
-                                        }
-                                        image {
-                                            large
-                                        }
-                                    }
-                                }
-                            }
-                            studios {
-                                edges {
-                                    favouriteOrder
-                                    node {
-                                        id
-                                        name
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                `,
-                variables: {
-                }
-            }
-        };
-
-        const req = await this.request(options.uri, {
-            body: JSON.stringify(options.json),
-            method: options.method,
-            headers: {
-                'Authorization': 'Bearer ' + token,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-        }).catch((err) => {
-            console.error(err);
-            return null;
-        });
-        const data = req.json();
-        return data;
-    }
-
-    /**
-     * @description Gets the list of an user
-     * @param userId The user ID to query
-     * @param type Type of list to get (eg. anime/manga)
-     * @returns Promise<ListResponse>
-     */
-    public async getList(userId:number, type?:Type):Promise<ListResponse> {
-        type = type ? type : Type.ANIME;
-        const aniListArgs = {
-            query: `
-                query($userId: Int, $userName: String, $type: MediaType) {
-                MediaListCollection(userId: $userId, userName: $userName, type: $type) {
-                    lists {
-                        name isCustomList isCompletedList: isSplitCompletedList entries {
-                            ...mediaListEntry
-                        }
-                    }
-                    user {
-                        id name avatar {
-                            large
-                        }
-                        mediaListOptions {
-                            scoreFormat rowOrder animeList {
-                                sectionOrder customLists splitCompletedSectionByFormat theme
-                            }
-                            mangaList {
-                                sectionOrder customLists splitCompletedSectionByFormat theme
-                            }
-                        }
-                    }
-                }
-            }
-            fragment mediaListEntry on MediaList {
-                id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt {
-                    year month day
-                }
-                completedAt {
-                    year month day
-                }
-                media {
-                    id title {
-                        userPreferred romaji english native
-                    }
-                    coverImage {
-                        extraLarge large
-                    }
-                    type format status(version: 2) episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage startDate {
-                        year month day
-                    }
-                }
-            }`,
-            variables: {
-                userId: userId,
-                type: type
-            }
-        }
-
-        const req = await this.request(this.api, {
-            body: JSON.stringify(aniListArgs),
-            method: "POST",
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        }).catch((err) => {
-            console.error(err);
-            return null;
-        });
-        if (!req) {
-            return null;
-        }
-        const data = req.json();
-        return data;
-    }
-
-    /**
-     * @description Updates the currently logged-in user's list
-     * @param variables Controls the way a list is updated
-     * @param token Authentication token
-     * @returns Promise<UpdateResponse>
-     */
-    public async updateList(variables:ListVariables, token:string):Promise<UpdateResponse> {
-        const aniListArgs = {
-            query: `
-            mutation($id: Int $mediaId: Int $status: MediaListStatus $score: Float $progress: Int $progressVolumes: Int $repeat: Int $private: Boolean $notes: String $customLists: [String] $hiddenFromStatusLists: Boolean $advancedScores: [Float] $startedAt: FuzzyDateInput $completedAt: FuzzyDateInput) {
-                SaveMediaListEntry(id: $id mediaId: $mediaId status: $status score: $score progress: $progress progressVolumes: $progressVolumes repeat: $repeat private: $private notes: $notes customLists: $customLists hiddenFromStatusLists: $hiddenFromStatusLists advancedScores: $advancedScores startedAt: $startedAt completedAt: $completedAt) {
-                    id mediaId status score advancedScores progress progressVolumes repeat priority private hiddenFromStatusLists customLists notes updatedAt startedAt {
-                        year month day
-                    }
-                    completedAt {
-                        year month day
-                    }
-                    user {
-                        id name
-                    }
-                    media {
-                        id title {
-                            userPreferred
-                        }
-                        coverImage {
-                            large
-                        }
-                        type format status episodes volumes chapters averageScore popularity isAdult startDate {
-                            year
-                        }
-                    }
-                }
-            }
-            `,
-            variables: variables
-        }
-        const req = await this.request(this.api, {
-            body: JSON.stringify(aniListArgs),
-            method: "POST",
-            headers: {
-                'Authorization': 'Bearer ' + token,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-        }).catch((err) => {
-            console.error(err);
-            return null;
-        });
-        if (!req) {
-            return null;
-        }
-        const data = req.json();
-        return data;
-    }
 }
 
-export async function search(query:string, type:Type, page?:number, perPage?:number): Promise<Media[]> {
+export async function search(query:string, page?:number, perPage?:number): Promise<Media[]> {
     const self = new AniList();
-    return await self.search(query, type, page, perPage);
+    return await self.search(query, page, perPage);
 }
 
 export async function getMedia(id:string): Promise<Media> {
