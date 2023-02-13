@@ -208,29 +208,35 @@ export default class Core extends API {
      * @param maxIds Max IDs to crawl
      * @returns Promise<any>
      */
-     public async crawl(stopOnError?:boolean, maxIds?:number): Promise<FormattedResponse[]> {
+     public async crawl(stopOnError?:boolean): Promise<FormattedResponse[]> {
         const results = [];
 
-        let ids = await this.aniList.getMangaIDs();
+        const req = await this.fetch("https://api.anify.tv/all/novels");
+        const data = req.json();
+        
+        let ids = await data;
+        const titles = [];
 
-        maxIds = maxIds ? maxIds : ids.length;
-
-        for (let i = 0; i < ids.length && i < maxIds; i++) {
-            if (i >= maxIds) {
-                break;
-            }
+        for (let i = 0; i < ids.length; i++) {
             const start = new Date(Date.now());
 
-            const data:Media = await this.aniList.getMedia(ids[i]).catch((err) => {
-                if (this.config.debug) {
-                    console.log(colors.red("Error fetching ID: ") + colors.white(ids[i] + ""));
+            let title = ids[i].title;
+            if (title.includes(" - ")) {
+                title = title.split(" - ")[0];
+            }
+            
+            let canCrawl = true;
+            for (let j = 0; j < titles.length; j++) {
+                if (titles[j] === title) {
+                    canCrawl = false;
                 }
-                return null;
-            });
-            if (data && data.format === Format.NOVEL) {
-                const result = await this.get(ids[i]).catch((err) => {
+            }
+
+            if (canCrawl) {
+                titles.push(title);
+                const result = await this.search(title).catch((err) => {
                     if (this.config.debug) {
-                        console.log(colors.red("Error fetching ID from providers: ") + colors.white(ids[i] + ""));
+                        console.log(colors.red("Error fetching data from providers: ") + colors.white(title + ""));
                         console.log(colors.gray(err.message));
                     }
                     if (stopOnError) {
@@ -241,11 +247,11 @@ export default class Core extends API {
                 if (result) {
                     results.push(result);
                 }
-            }
-            if (this.config.debug) {
-                const end = new Date(Date.now());
-                console.log(colors.gray("Finished fetching data. Request(s) took ") + colors.cyan(String(end.getTime() - start.getTime())) + colors.gray(" milliseconds."));
-                console.log(colors.green("Fetched ID ") + colors.blue("#" + (i + 1) + "/" + maxIds));
+                if (this.config.debug) {
+                    const end = new Date(Date.now());
+                    console.log(colors.gray("Finished fetching data. Request(s) took ") + colors.cyan(String(end.getTime() - start.getTime())) + colors.gray(" milliseconds."));
+                    console.log(colors.green("Fetched ID ") + colors.blue("#" + (i + 1) + "/" + ids.length));
+                }
             }
         }
 

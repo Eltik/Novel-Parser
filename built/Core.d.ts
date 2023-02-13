@@ -47,7 +47,7 @@ export default class Core extends API {
      * @param maxIds Max IDs to crawl
      * @returns Promise<any>
      */
-    crawl(stopOnError?: boolean, maxIds?: number): Promise<FormattedResponse[]>;
+    crawl(stopOnError?: boolean): Promise<FormattedResponse[]>;
     /**
     * @description Formats search responses so that all connectors are assigned to one AniList media object.
     * @param results Search results
@@ -79,7 +79,7 @@ export default class Core extends API {
      * @returns FormattedResponse[]
      */
     private searchCompare;
-    pdfToHTML(url: string): Promise<any>;
+    pdfToHTML(url: string): Promise<string>;
 }
 interface Result {
     title: string;

@@ -186,25 +186,29 @@ class Core extends API_1.default {
      * @param maxIds Max IDs to crawl
      * @returns Promise<any>
      */
-    async crawl(stopOnError, maxIds) {
+    async crawl(stopOnError) {
         const results = [];
-        let ids = await this.aniList.getMangaIDs();
-        maxIds = maxIds ? maxIds : ids.length;
-        for (let i = 0; i < ids.length && i < maxIds; i++) {
-            if (i >= maxIds) {
-                break;
-            }
+        const req = await this.fetch("https://api.anify.tv/all/novels");
+        const data = req.json();
+        let ids = await data;
+        const titles = [];
+        for (let i = 0; i < ids.length; i++) {
             const start = new Date(Date.now());
-            const data = await this.aniList.getMedia(ids[i]).catch((err) => {
-                if (this.config.debug) {
-                    console.log(colors.red("Error fetching ID: ") + colors.white(ids[i] + ""));
+            let title = ids[i].title;
+            if (title.includes(" - ")) {
+                title = title.split(" - ")[0];
+            }
+            let canCrawl = true;
+            for (let j = 0; j < titles.length; j++) {
+                if (titles[j] === title) {
+                    canCrawl = false;
                 }
-                return null;
-            });
-            if (data && data.format === AniList_1.Format.NOVEL) {
-                const result = await this.get(ids[i]).catch((err) => {
+            }
+            if (canCrawl) {
+                titles.push(title);
+                const result = await this.search(title).catch((err) => {
                     if (this.config.debug) {
-                        console.log(colors.red("Error fetching ID from providers: ") + colors.white(ids[i] + ""));
+                        console.log(colors.red("Error fetching data from providers: ") + colors.white(title + ""));
                         console.log(colors.gray(err.message));
                     }
                     if (stopOnError) {
@@ -215,11 +219,11 @@ class Core extends API_1.default {
                 if (result) {
                     results.push(result);
                 }
-            }
-            if (this.config.debug) {
-                const end = new Date(Date.now());
-                console.log(colors.gray("Finished fetching data. Request(s) took ") + colors.cyan(String(end.getTime() - start.getTime())) + colors.gray(" milliseconds."));
-                console.log(colors.green("Fetched ID ") + colors.blue("#" + (i + 1) + "/" + maxIds));
+                if (this.config.debug) {
+                    const end = new Date(Date.now());
+                    console.log(colors.gray("Finished fetching data. Request(s) took ") + colors.cyan(String(end.getTime() - start.getTime())) + colors.gray(" milliseconds."));
+                    console.log(colors.green("Fetched ID ") + colors.blue("#" + (i + 1) + "/" + ids.length));
+                }
             }
         }
         if (this.config.debug) {
@@ -348,13 +352,6 @@ class Core extends API_1.default {
     async pdfToHTML(url) {
         const data = await crawler(url);
         return data.text;
-        /*
-        const doc = await pdf(pdfPath).promise;
-        const page = await doc.getPage(1);
-        const content = await page.getTextContent();
-        const text = content.items.map((item) => item.str).join(' ');
-        return text;
-        */
     }
 }
 exports.default = Core;
